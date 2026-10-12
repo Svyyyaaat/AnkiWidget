@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Two stacked flashcards -->
+    <path android:fillColor="#FFB3C5FF" android:pathData="M40,34h36a4,4 0,0 1,4 4v28a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-28a4,4 0,0 1,4 -4z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M32,40h36a4,4 0,0 1,4 4v28a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-28a4,4 0,0 1,4 -4z" />
+    <path android:fillColor="#FF2B4A9E" android:pathData="M40,52h20v4h-20z M44,62h12v3h-12z" />
+</vector>

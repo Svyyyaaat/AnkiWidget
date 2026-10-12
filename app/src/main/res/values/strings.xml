@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AnkiWidget</string>
+    <string name="widget_name">Anki review</string>
+    <string name="widget_description">Review your AnkiDroid cards from the home screen</string>
+</resources>
