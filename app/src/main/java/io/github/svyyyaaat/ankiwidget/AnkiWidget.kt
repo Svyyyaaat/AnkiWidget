@@ -169,6 +169,7 @@ private fun WidgetContent(prefs: Preferences, palette: Palette) {
             Status.CARD -> CardContent(prefs, palette)
             Status.DONE -> Message(
                 prefs, palette,
+                cardIcons = true,
                 title = "All done for now",
                 hint = "Tap to check again",
                 onClick = action(Action.REFRESH),
@@ -191,7 +192,7 @@ private fun WidgetContent(prefs: Preferences, palette: Palette) {
                 hint = (prefs[Keys.MESSAGE]?.let { "$it\n" } ?: "") + "Tap to retry",
                 onClick = action(Action.REFRESH),
             )
-            else -> Message(prefs, palette, title = "Loading…", hint = null, onClick = action(Action.REFRESH))
+            else -> Message(prefs, palette, cardIcons = true, title = "Loading…", hint = null, onClick = action(Action.REFRESH))
         }
     }
 }
@@ -206,9 +207,17 @@ private fun configIntent(): Intent {
 }
 
 @Composable
-private fun Message(prefs: Preferences, palette: Palette, title: String, hint: String?, onClick: GlanceAction) {
+private fun Message(
+    prefs: Preferences,
+    palette: Palette,
+    title: String,
+    hint: String?,
+    onClick: GlanceAction,
+    cardIcons: Boolean = false,
+) {
     Column(modifier = GlanceModifier.fillMaxSize()) {
-        TopBar(prefs, palette, cardActions = false)
+        // No card on screen, but Back can still undo the last answer.
+        TopBar(prefs, palette, back = cardIcons, suspend = false)
         Column(
             modifier = GlanceModifier.fillMaxWidth().defaultWeight().clickable(onClick),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -227,29 +236,25 @@ private fun Message(prefs: Preferences, palette: Palette, title: String, hint: S
 }
 
 @Composable
-private fun TopBar(prefs: Preferences, palette: Palette, cardActions: Boolean) {
-    val showCounts = (prefs[Keys.SHOW_COUNTS] ?: true) && prefs[Keys.HAS_COUNTS] == true
-    if (!cardActions && !showCounts) return
+private fun TopBar(prefs: Preferences, palette: Palette, back: Boolean, suspend: Boolean) {
+    val counts = displayedCounts(prefs)?.takeIf { prefs[Keys.SHOW_COUNTS] ?: true }
+    if (!back && !suspend && counts == null) return
     Row(modifier = GlanceModifier.fillMaxWidth().height(TOP_BAR), verticalAlignment = Alignment.CenterVertically) {
-        if (cardActions) {
-            val onAnswer = prefs[Keys.SIDE] == Side.ANSWER
-            val canUndo = prefs[Keys.CAN_UNDO] == true
-            val back: GlanceAction? = when {
-                // On the answer side, go back to the question.
-                onAnswer -> action(Action.BACK)
-                // On the question side, the previous answer can be undone in AnkiDroid's reviewer.
-                canUndo -> actionStartActivity(AnkiDroid.reviewIntent(prefs[Keys.RESOLVED_DECK] ?: AnkiDroid.CURRENT_DECK))
-                else -> null
-            }
-            CircleIcon(R.drawable.ic_back, "Go back", palette, back)
+        if (back) {
+            // On the answer side: back to the question. Otherwise: undo the last answer, if any.
+            val canGoBack = (prefs[Keys.SIDE] == Side.ANSWER && Slots.CURRENT.read(prefs) != null) ||
+                Slots.PENDING.read(prefs) != null
+            CircleIcon(R.drawable.ic_back, "Go back", palette, action(Action.BACK).takeIf { canGoBack })
+        }
+        if (suspend) {
             Spacer(GlanceModifier.width(6.dp))
             CircleIcon(R.drawable.ic_suspend, "Suspend card", palette, action(Action.SUSPEND))
         }
         Spacer(GlanceModifier.defaultWeight())
-        if (showCounts) {
-            Count(prefs[Keys.COUNT_NEW] ?: 0, palette.countNew)
-            Count(prefs[Keys.COUNT_LEARN] ?: 0, palette.countLearn)
-            Count(prefs[Keys.COUNT_REVIEW] ?: 0, palette.countReview)
+        if (counts != null) {
+            Count(counts.new, palette.countNew)
+            Count(counts.learn, palette.countLearn)
+            Count(counts.review, palette.countReview)
         }
     }
 }
@@ -291,15 +296,16 @@ private fun CardContent(prefs: Preferences, palette: Palette) {
     val size = LocalSize.current
     val cardWidth = size.width - OUTER_PADDING * 2
     val cardHeight = size.height - OUTER_PADDING * 2 - TOP_BAR - bottom - GAP * 2
-    val html = (if (onAnswer) prefs[Keys.ANSWER] else prefs[Keys.QUESTION]).orEmpty()
-    val times = prefs[Keys.NEXT_TIMES]?.split(TIMES_SEPARATOR).orEmpty()
+    val card = Slots.CURRENT.read(prefs)
+    val html = (if (onAnswer) card?.answer else card?.question).orEmpty()
+    val times = card?.nextTimes.orEmpty()
 
     Column(modifier = GlanceModifier.fillMaxSize()) {
-        TopBar(prefs, palette, cardActions = true)
+        TopBar(prefs, palette, back = true, suspend = true)
         Spacer(GlanceModifier.height(GAP))
         Box(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
             Column(modifier = GlanceModifier.fillMaxSize()) {
-                CardImage(html, prefs[Keys.CSS].orEmpty(), cardWidth, cardHeight, palette, GlanceModifier.fillMaxWidth().defaultWeight())
+                CardImage(html, card?.css.orEmpty(), cardWidth, cardHeight, palette, GlanceModifier.fillMaxWidth().defaultWeight())
                 Spacer(GlanceModifier.height(GAP))
                 when {
                     simple && !onAnswer -> HintRow("Tap to show answer", null, palette)

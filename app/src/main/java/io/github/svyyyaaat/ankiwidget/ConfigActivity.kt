@@ -222,13 +222,15 @@ private fun ConfigScreen(appWidgetId: Int?, onSaved: () -> Unit) {
             onClick = {
                 scope.launch {
                     val glanceId = GlanceAppWidgetManager(context).getGlanceIdBy(appWidgetId)
+                    // Write any held answer against the old deck before settings change.
+                    WidgetController.perform(context, glanceId, Action.COMMIT)
                     updateAppWidgetState(context, glanceId) { prefs ->
                         prefs[Keys.DECK_ID] = deckId
                         prefs[Keys.SYSTEM_COLORS] = systemColors
                         prefs[Keys.SHOW_COUNTS] = showCounts
                         prefs[Keys.SIMPLE_CONTROLS] = simpleControls
                     }
-                    WidgetController.refresh(context, glanceId)
+                    WidgetController.perform(context, glanceId, Action.REFRESH)
                     onSaved()
                 }
             },

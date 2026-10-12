@@ -9,8 +9,10 @@ as usual. No AnkiWeb access or second database.
 ## Features
 
 - Question → tap → answer, with Again / Hard / Good / Easy and AnkiDroid's next intervals
-- **Go back** (top-left): on the answer, returns to the question; after answering, opens
-  AnkiDroid's reviewer where the last answer can be undone (the API has no undo call)
+- **Go back** (top-left): on the answer, returns to the question; otherwise undoes the last
+  answer or suspend. AnkiDroid's API has no undo, so the widget holds the last answer back
+  and writes it to AnkiDroid when you answer the next card, or after 2 minutes idle
+  (one level of undo)
 - **Suspend** (top-left): suspends the current card
 - Card HTML rendered natively, including furigana (`<ruby>` and `漢字[かんじ]` syntax),
   font sizes/weights from the note type's CSS, and hidden elements; audio and images are skipped
@@ -31,6 +33,7 @@ as usual. No AnkiWeb access or second database.
 ## Building
 
 ```
+./gradlew assembleRelease      # app/build/outputs/apk/release/app-release.apk (optimised, debug-signed)
 ./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew testDebugUnitTest    # renderer tests; writes previews to app/build/preview/
 ```

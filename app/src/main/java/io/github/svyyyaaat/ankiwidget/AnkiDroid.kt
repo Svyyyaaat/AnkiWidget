@@ -1,6 +1,5 @@
 package io.github.svyyyaaat.ankiwidget
 
-import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -83,34 +82,53 @@ object AnkiDroid {
         }
     }
 
-    fun nextCard(context: Context, deckId: Long): DueCard? {
+    /** The next [limit] cards AnkiDroid would show, in order. */
+    fun nextCards(context: Context, deckId: Long, limit: Int): List<DueCard> {
         val (selection, args) =
             if (deckId == CURRENT_DECK) {
-                "limit=?" to arrayOf("1")
+                "limit=?" to arrayOf(limit.toString())
             } else {
-                "limit=?,deckID=?" to arrayOf("1", deckId.toString())
+                "limit=?,deckID=?" to arrayOf(limit.toString(), deckId.toString())
             }
         val projection = arrayOf("note_id", "ord", "button_count", "next_review_times")
-        return context.contentResolver.query(SCHEDULE_URI, projection, selection, args, null)?.use { c ->
-            if (!c.moveToFirst()) return@use null
-            val times = JSONArray(c.getString(3))
-            DueCard(
-                noteId = c.getLong(0),
-                ord = c.getInt(1),
-                buttonCount = c.getInt(2),
-                nextTimes = List(times.length()) { times.optString(it) },
-            )
+        val cards = mutableListOf<DueCard>()
+        context.contentResolver.query(SCHEDULE_URI, projection, selection, args, null)?.use { c ->
+            while (c.moveToNext()) {
+                val times = JSONArray(c.getString(3))
+                cards += DueCard(
+                    noteId = c.getLong(0),
+                    ord = c.getInt(1),
+                    buttonCount = c.getInt(2),
+                    nextTimes = List(times.length()) { times.optString(it) },
+                )
+            }
         }
+        return cards
     }
+
+    /**
+     * The card's scheduler queue (0 new, 1/3 learning, 2 review), or null if this AnkiDroid
+     * version doesn't expose it (the column was added to the API recently).
+     */
+    fun cardQueue(context: Context, noteId: Long, ord: Int): Int? =
+        try {
+            context.contentResolver.query(cardUri(noteId, ord), arrayOf("queue"), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getInt(0) else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+    private fun cardUri(noteId: Long, ord: Int): Uri =
+        Uri.withAppendedPath(Uri.withAppendedPath(Uri.withAppendedPath(NOTES_URI, noteId.toString()), "cards"), ord.toString())
 
     private val cssCache = mutableMapOf<Long, String>()
 
     fun cardContent(context: Context, noteId: Long, ord: Int): CardContent {
         val cr = context.contentResolver
         val noteUri = Uri.withAppendedPath(NOTES_URI, noteId.toString())
-        val cardUri = Uri.withAppendedPath(Uri.withAppendedPath(noteUri, "cards"), ord.toString())
         val (question, answer) =
-            cr.query(cardUri, arrayOf("question_simple", "answer_pure"), null, null, null)?.use { c ->
+            cr.query(cardUri(noteId, ord), arrayOf("question_simple", "answer_pure"), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0).orEmpty() to c.getString(1).orEmpty() else null
             } ?: ("" to "")
 
@@ -147,13 +165,6 @@ object AnkiDroid {
         }
         context.contentResolver.update(SCHEDULE_URI, values, null, null)
     }
-
-    /** Opens AnkiDroid's reviewer on [deckId], where the last answer can be undone. */
-    fun reviewIntent(deckId: Long): Intent =
-        Intent()
-            .setComponent(ComponentName(PACKAGE, "com.ichi2.anki.IntentHandler"))
-            .putExtra("EXTRA_DECK_ID", deckId)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     fun playStoreIntent(): Intent =
         Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PACKAGE"))
